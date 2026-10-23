@@ -144,6 +144,13 @@ fi
 
 patch -p1 < "$SUSFS_PATCH" || true
 
+# 修复 fs/namespace.c 中 SUSFS 头部 hunk 被 reject 导致的未声明错误
+if [[ -f fs/namespace.c ]] && grep -qF 'VFSMOUNT_MNT_FLAGS_KSU_UNSHARED_MNT' fs/namespace.c \
+  && ! grep -qF 'susfs_def.h' fs/namespace.c; then
+  echo "修复 fs/namespace.c 中缺失的 SUSFS 头文件与声明"
+  sed -i '1s/^/#ifdef CONFIG_KSU_SUSFS\n#include <linux\/susfs_def.h>\n#include <linux\/susfs.h>\n#endif\n#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT\nextern bool susfs_is_current_ksu_domain(void);\nextern bool susfs_is_current_proc_umounted(void);\nextern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;\n#define CL_COPY_MNT_NS BIT(25)\n#endif\n\n/' fs/namespace.c
+fi
+
 # 为尚未提供 SU 会话 FD 接口的 SukiSU/BakaSU 恢复旧版 exec hook 行为
 EXEC_HELPER=""
 if [[ "$KSU_VARIANT" == SukiSU* || "$KSU_VARIANT" == "BakaSU" ]]; then
